@@ -36,7 +36,9 @@
 		}
 	},
 	"postCreateCommand": "pip install -r requirements.txt",
-
+	"mounts": [
+		"source=${localEnv:HOME}/.gitconfig,target=/etc/gitconfig,type=bind"
+	],
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	// "features": {},
 
