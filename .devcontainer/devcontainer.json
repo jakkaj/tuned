@@ -5,7 +5,8 @@
 	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
 	"image": "mcr.microsoft.com/devcontainers/python:1-3.12-bullseye",
 	"runArgs": [
-		"--gpus=all"
+		"--gpus=all",
+		"--network=host"
 	], // Add this line
 	"hostRequirements": {
 		"gpu": true
@@ -26,7 +27,13 @@
 			"omzPlugins": "https://github.com/zsh-users/zsh-autosuggestions",
 			"username": "vscode"
 		},
-		"ghcr.io/schlich/devcontainer-features/powerlevel10k:1": {}
+		"ghcr.io/schlich/devcontainer-features/powerlevel10k:1": {},
+		"ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
+			"moby": true,
+			"version": "latest",
+			"dockerDashComposeVersion": "v2"
+		},
+		
 	},
 	"customizations": {
 		"vscode": {
@@ -37,7 +44,8 @@
 	},
 	"postCreateCommand": "pip install -r requirements.txt",
 	"mounts": [
-		"source=${localEnv:HOME}/.gitconfig,target=/etc/gitconfig,type=bind"
+		"source=${localEnv:HOME}/.gitconfig,target=/home/vscode/.gitconfig,type=bind",
+		"source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind"
 	],
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	// "features": {},
