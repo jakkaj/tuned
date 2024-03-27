@@ -11,7 +11,7 @@ from datetime import datetime
 
 base_model_id = "mistralai/Mistral-7B-v0.1"
 
-max_length = 512 # This was an appropriate max length for my dataset
+max_length = 200 # This was an appropriate max length for my dataset
 
 
 
