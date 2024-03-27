@@ -4,10 +4,10 @@ import textwrap
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
-def generate_text(prompt):
+def generate_text(prompt, model):
     url = 'http://host.docker.internal:11434/api/generate'
     data = {
-      "model": "mistral",
+      "model": model,
       "prompt": "Instruct: " + prompt + "\nOutput:",
       "options": {
         "stop": ["Instruct:", "Output:"]
@@ -73,7 +73,7 @@ def get_preparation_prompt(para):
   return prompt
   
   
-def generate_prompt_from_paragraphs(paragraphs, start_paragraph=20):  
+def generate_prompt_from_paragraphs(paragraphs, output_file, model, start_paragraph=20):  
 
   # Initialize DataFrame
   df = pd.DataFrame(columns=['Original Paragraph', 'Prompt'])
@@ -83,19 +83,23 @@ def generate_prompt_from_paragraphs(paragraphs, start_paragraph=20):
       paragraph = paragraphs[i]
       prompt = get_preparation_prompt(paragraph)
 
-      response_json = generate_text(prompt)
+      response_json = generate_text(prompt, model)
       response = response_json["response"]
       
-      response = f"{response.strip()}"
+      response = f"{response.strip().replace('\n', '')}"
+      
+      if not response:
+        continue
+      
       # Append to DataFrame using pd.concat
       new_row = pd.DataFrame({'Original Paragraph': [paragraph], 'Prompt': [response]})
       df = pd.concat([df, new_row], ignore_index=True)
       print(f"Processed {i+1} of {min(start_paragraph + total_paragraphs, start_paragraph + process_cutoff)} paragraphs.")
-      df.to_csv('output.csv', index=False)
+      df.to_csv(output_file, index=False)
   
   return df
 
-def split_training_set(df):
+def split_training_set(df, file_base):
   
   print(df.iloc[0])
   record_index = 0  # Replace with the desired record index
@@ -111,20 +115,20 @@ def split_training_set(df):
   # Assuming df has been properly defined and contains the columns 'input' and 'output'
   df_transposed = df.rename(columns={'Prompt': 'input', 'Original Paragraph': 'output'})
   df_filtered = df_transposed[['input', 'output']]
-  df_filtered.to_json('output.jsonl', orient='records', lines=True)
+  df_filtered.to_json(file_base + '_output.jsonl', orient='records', lines=True)
 
   # Load the JSONL file
-  with open('output.jsonl', 'r') as file:
+  with open(file_base + '_output.jsonl', 'r') as file:
       jsonl_data = file.readlines()
 
   # Split the data into training and validation sets
   train_data, val_data = train_test_split(jsonl_data, test_size=0.2, random_state=42)
 
   # Save the training and validation sets to separate files
-  with open('train.jsonl', 'w') as file:
+  with open(file_base + '_train.jsonl', 'w') as file:
       file.writelines(train_data)
 
-  with open('val.jsonl', 'w') as file:
+  with open(file_base + '_val.jsonl', 'w') as file:
       file.writelines(val_data)
 
 

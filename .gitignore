@@ -160,3 +160,4 @@ cython_debug/
 #.idea/
 wip/phi2-journal-finetune/checkpoint-*
 wip/wandb/run*
+data/exc*
