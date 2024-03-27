@@ -1,12 +1,16 @@
 
+from helpers.finetune_mistral import run_finetune_mistral
 from helpers.infer import infer
-from helpers.finetune import run_finetune
+from helpers.finetune_phi import run_finetune
 
 
 file_path = './data/runs/phi2-journal-finetune'
-
-def test_train():
-    run_finetune(file_path)
+train_path = './data/exc_mistral_prep_1.csv'
+def test_train_phi():
+    run_finetune(train_path)
+    
+def test_train_mistral():
+    run_finetune_mistral(train_path)
     
 def test_infer():
     run_number = 950

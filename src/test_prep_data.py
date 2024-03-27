@@ -3,7 +3,7 @@ import pandas as pd
 from helpers.data_prep import parse_into_paragraphs, generate_text, generate_prompt_from_paragraphs, split_training_set
 import os
 
-model = "mistral"
+model = "mixtral"
 file_path = './data/exc.txt'
 
 def get_output_file():

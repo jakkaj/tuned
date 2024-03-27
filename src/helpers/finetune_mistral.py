@@ -3,14 +3,17 @@ from torch.distributed.fsdp.fully_sharded_data_parallel import FullOptimStateDic
 from datasets import load_dataset
 import wandb, os
 import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 from peft import LoraConfig, get_peft_model
 import transformers
 from datetime import datetime
 
 
-base_model_id = "microsoft/phi-2"
-max_length = 260 # This was an appropriate max length for my dataset
+base_model_id = "mistralai/Mistral-7B-v0.1"
+
+max_length = 512 # This was an appropriate max length for my dataset
+
+
 
 def generate_and_tokenize_prompt2(prompt):
     result = tokenizer(
@@ -27,19 +30,26 @@ tokenizer = AutoTokenizer.from_pretrained(
     padding_side="left",
     add_eos_token=True,
     add_bos_token=True,
-    use_fast=False, # needed for now, should be fixed soon
 )
-
 tokenizer.pad_token = tokenizer.eos_token
 
 def generate_and_tokenize_prompt(prompt):
     return tokenizer(formatting_func(prompt))
 
 def formatting_func(example):
-    text = f"### Generate Scifi: {example['input']} ### Output:{example['output']}"
+    text = f"###Scifi Input: {example['input']} ### Scifi Output:{example['output']}"
     return text
 
-def run_finetune(base_path):
+def run_finetune_mistral(base_path):
+    
+    bnb_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_use_double_quant=True,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_compute_dtype=torch.bfloat16
+    )
+
+    model = AutoModelForCausalLM.from_pretrained(base_model_id, quantization_config=bnb_config, device_map="auto")
     
     fsdp_plugin = FullyShardedDataParallelPlugin(
         state_dict_config=FullStateDictConfig(offload_to_cpu=True, rank0_only=False),
@@ -59,7 +69,7 @@ def run_finetune(base_path):
     train_dataset = load_dataset('json', data_files=train_file, split='train')
     eval_dataset = load_dataset('json', data_files=val_file, split='train')
     
-    model = AutoModelForCausalLM.from_pretrained(base_model_id, trust_remote_code=True, torch_dtype=torch.float16, load_in_8bit=True)
+   
     tokenized_train_dataset = train_dataset.map(generate_and_tokenize_prompt)
     tokenized_val_dataset = eval_dataset.map(generate_and_tokenize_prompt)
     
@@ -70,9 +80,14 @@ def run_finetune(base_path):
     r=32,
     lora_alpha=64,
     target_modules=[
-        "Wqkv",
-        "fc1",
-        "fc2",
+        "q_proj",
+        "k_proj",
+        "v_proj",
+        "o_proj",
+        "gate_proj",
+        "up_proj",
+        "down_proj",
+        "lm_head",
     ],
     bias="none",
     lora_dropout=0.05,  # Conventional
@@ -85,13 +100,9 @@ def run_finetune(base_path):
     if torch.cuda.device_count() > 1: # If more than 1 GPU
         model.is_parallelizable = True
         model.model_parallel = True
-    
-    
-    
-    
 
     project = "journal-finetune"
-    base_model_name = "phi2"
+    base_model_name = "mistral"
     run_name = base_model_name + "-" + project
     output_dir = "./data/runs/" + run_name
 
@@ -102,10 +113,12 @@ def run_finetune(base_path):
         args=transformers.TrainingArguments(
             output_dir=output_dir,
             warmup_steps=1,
-            per_device_train_batch_size=5,#2,
+            per_device_train_batch_size=3,
             gradient_accumulation_steps=1,
-            max_steps=1500,
+            gradient_checkpointing=True,
+            max_steps=500,
             learning_rate=2.5e-5, # Want a small lr for finetuning
+            bf16=True,
             optim="paged_adamw_8bit",
             logging_steps=25,              # When to start reporting loss
             logging_dir="./logs",        # Directory for storing logs
