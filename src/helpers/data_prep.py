@@ -4,7 +4,34 @@ import json
 import textwrap
 import pandas as pd
 from sklearn.model_selection import train_test_split
+import concurrent.futures
 import spacy
+import aiohttp
+import asyncio
+
+# Calls to ollama server https://ollama.com/
+
+async def generate_text_async(prompt, model):
+    url = 'http://host.docker.internal:11434/api/generate'
+    data = {
+        "model": model,
+        "prompt": "Instruct: " + prompt + "\nOutput:",
+        "options": {
+            "stop": ["Instruct:", "Output:"]
+        },
+        "raw": True,
+        "stream": False
+    }
+
+    async with aiohttp.ClientSession() as session:
+        try:
+            #print(f"Sending request for prompt: {prompt[:30]}...")
+            async with session.post(url, json=data, timeout=10) as response:  # 10-second timeout
+                response_json = await response.json()
+                return response_json
+        except aiohttp.ClientError as e:
+            print(f"Request failed for prompt: {prompt[:30]} with error {e}")
+            return None
 
 def generate_text(prompt, model):
     url = 'http://host.docker.internal:11434/api/generate'
@@ -66,37 +93,49 @@ def get_preparation_prompt(para):
 
   """
   
-  prompt = f"### Instruct: You are a sci-fi author. Follow these instructions:\n{instructions}\n  ### Paragraph: \n\"{para}\"\n ### Output: "
+  prompt = f"You are a sci-fi author. Follow these instructions:\n{instructions}\n  ### Paragraph: \n\"{para}\"\n"
   return prompt
   
-  
-def generate_prompt_from_segments(segments, output_file, model, start_paragraph=20):  
+async def generate_prompt_from_segments(segments, output_file, model, start_paragraph=20):
+    df = pd.DataFrame(columns=['Original Paragraph', 'Prompt'])
+    total_paragraphs = len(segments)
+    semaphore = asyncio.Semaphore(6)
+    print(f"Generating to {output_file}")
+    async def process_paragraph(i):
+        async with semaphore:
+          try:
+              print(f"Processing segment {i+1} of {total_paragraphs}...")
 
-  # Initialize DataFrame
-  df = pd.DataFrame(columns=['Original Paragraph', 'Prompt'])
-  process_cutoff = len(segments) #limit (e.g. 10 to process only 10)
-  total_paragraphs = len(segments)
-  for i in range(start_paragraph, min(total_paragraphs, start_paragraph + process_cutoff)):
-      print(f"Processing {i+1} of {min(start_paragraph + total_paragraphs, start_paragraph + process_cutoff)} paragraphs.")
-      
-      paragraph = segments[i]
-      prompt = get_preparation_prompt(paragraph)
+              paragraph = segments[i]
+              prompt = get_preparation_prompt(paragraph)
 
-      response_json = generate_text(prompt, model)
-      response = response_json["response"]
-      
-      response = f"{response.strip().replace('\n', '')}"
-      
-      if not response:
-        continue
-      
-      # Append to DataFrame using pd.concat
-      new_row = pd.DataFrame({'Original Paragraph': [paragraph], 'Prompt': [response]})
-      df = pd.concat([df, new_row], ignore_index=True)
-      
-      df.to_csv(output_file, index=False)
-  
-  return df
+              response_json = await generate_text_async(prompt, model)
+              if response_json is None:
+                  return None
+
+              response = response_json.get("response", "").strip().replace('\n', '')
+              response = ftfy.fix_text(response)
+
+              if not response:
+                  return None
+
+              return {'Original Paragraph': paragraph, 'Prompt': response}
+          except Exception as e:
+              print(f"Error processing paragraph {i+1}: {e}")
+              return None
+
+    end_paragraph = start_paragraph + 100
+    tasks = [process_paragraph(i) for i in range(start_paragraph, min(end_paragraph, total_paragraphs))]
+
+    results = await asyncio.gather(*tasks)
+
+    for result in results:
+        if result is not None:
+            new_row = pd.DataFrame([result])
+            df = pd.concat([df, new_row], ignore_index=True)
+
+    df.to_csv(output_file, index=False)
+    return df
 
 def split_training_set(df, file_base):
   

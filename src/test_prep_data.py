@@ -2,8 +2,8 @@
 import pandas as pd
 from helpers.data_prep import parse_into_paragraphs, generate_text, generate_prompt_from_segments, parse_into_sentences, split_training_set
 import os
-
-model = "mixtral"
+import asyncio
+model = "nous-hermes2-mixtral"
 file_path = './data/exc.txt'
 
 def get_output_file():
@@ -26,8 +26,7 @@ def get_max_output_file():
     return outputfile
 
 ### this is the big test, that builds the paragraphs
-def test_big_split():
-    
+def test_big_split():    
     
     outputfile = get_output_file()
     
@@ -35,7 +34,8 @@ def test_big_split():
     segments = parse_into_sentences(file_path)
     assert len(segments) != 0
     ## this will write output.csv which is half prepared
-    df = generate_prompt_from_segments(segments, outputfile, model)
+    
+    df = asyncio.run(generate_prompt_from_segments(segments, outputfile, model))
     ## this will write output.jsonl, train.jsonl, val.jsonl
     split_training_set(df)
 
