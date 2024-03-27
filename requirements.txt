@@ -12,3 +12,5 @@ einops
 wandb
 scikit-learn
 bitsandbytes
+spacy #python -m spacy download en_core_web_sm
+ftfy

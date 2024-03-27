@@ -1,6 +1,6 @@
 
 import pandas as pd
-from helpers.data_prep import parse_into_paragraphs, generate_text, generate_prompt_from_paragraphs, split_training_set
+from helpers.data_prep import parse_into_paragraphs, generate_text, generate_prompt_from_segments, parse_into_sentences, split_training_set
 import os
 
 model = "mixtral"
@@ -31,10 +31,11 @@ def test_big_split():
     
     outputfile = get_output_file()
     
-    paragraphs = parse_into_paragraphs(file_path)
-    assert len(paragraphs) != 0
+    #paragraphs = parse_into_paragraphs(file_path)
+    segments = parse_into_sentences(file_path)
+    assert len(segments) != 0
     ## this will write output.csv which is half prepared
-    df = generate_prompt_from_paragraphs(paragraphs, outputfile, model)
+    df = generate_prompt_from_segments(segments, outputfile, model)
     ## this will write output.jsonl, train.jsonl, val.jsonl
     split_training_set(df)
 

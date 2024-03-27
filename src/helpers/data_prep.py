@@ -1,8 +1,10 @@
+import ftfy
 import requests
 import json
 import textwrap
 import pandas as pd
 from sklearn.model_selection import train_test_split
+import spacy
 
 def generate_text(prompt, model):
     url = 'http://host.docker.internal:11434/api/generate'
@@ -24,14 +26,34 @@ def parse_into_paragraphs(file_path):
         content = file.read()
         paragraphs = content.split('\n\n')  # Splitting on two newlines to get paragraphs
     return paragraphs
+  
+def parse_into_sentences(file_path):
+    with open(file_path, 'r') as file:
+      content = file.read()
+      nlp = spacy.load("en_core_web_sm")  # Load the English model
+      
+      doc = nlp(content)
+      sentences = [sent.text for sent in doc.sents]
+      
+      fixed_sentences = [ftfy.fix_text(sentence) for sentence in sentences]
+      
+      # Iterate over both original and fixed sentences simultaneously
+      for original, fixed in zip(sentences, fixed_sentences):
+          if original != fixed:
+              # If a difference is found, print the original and fixed sentence for comparison
+              print("Original:", original)
+              print("Fixed:", fixed)
+              break  # Exit the loop after finding the first difference
+      
+      return fixed_sentences
 
 def get_preparation_prompt(para):
   
   para = para.replace('\n', ' ').strip()  # Added strip() to remove leading and trailing whitespace
 
 
-  instructions = """### Instructions for Generating a Prompt from a Sci-Fi Novel Paragraph
-  Given this paragraph from a science fiction novel, generate a terse prompt for creating similar text that will be used to finetune an LLM. 
+  instructions = """### Instructions for Generating a Prompt from a Sci-Fi Novel Sentence
+  Given this sentence from a science fiction novel, generate a terse prompt for creating similar text that will be used to finetune an LLM. 
   First, analyze the paragraph to extract key elements such as the main character(s), setting, and principal actions or events. 
   Then, expand these elements by describing the character’s appearance, emotional state, and any unique sci-fi traits. 
   Detail the setting to emphasize its sci-fi nature, whether it be a futuristic city, an alien landscape, or a space vessel etc. 
@@ -44,20 +66,20 @@ def get_preparation_prompt(para):
 
   """
   
-  prompt = f"You are a sci-fi author. Follow these instructions:\n{instructions}\n  ### Paragraph \n\"{para}\"\n ### Prompt: "
+  prompt = f"### Instruct: You are a sci-fi author. Follow these instructions:\n{instructions}\n  ### Paragraph: \n\"{para}\"\n ### Output: "
   return prompt
   
   
-def generate_prompt_from_paragraphs(paragraphs, output_file, model, start_paragraph=20):  
+def generate_prompt_from_segments(segments, output_file, model, start_paragraph=20):  
 
   # Initialize DataFrame
   df = pd.DataFrame(columns=['Original Paragraph', 'Prompt'])
-  process_cutoff = len(paragraphs) #limit (e.g. 10 to process only 10)
-  total_paragraphs = len(paragraphs)
+  process_cutoff = len(segments) #limit (e.g. 10 to process only 10)
+  total_paragraphs = len(segments)
   for i in range(start_paragraph, min(total_paragraphs, start_paragraph + process_cutoff)):
       print(f"Processing {i+1} of {min(start_paragraph + total_paragraphs, start_paragraph + process_cutoff)} paragraphs.")
       
-      paragraph = paragraphs[i]
+      paragraph = segments[i]
       prompt = get_preparation_prompt(paragraph)
 
       response_json = generate_text(prompt, model)
