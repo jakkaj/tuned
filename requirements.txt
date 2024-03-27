@@ -10,3 +10,4 @@ ipywidgets
 matplotlib
 einops
 wandb
+scikit-learn
