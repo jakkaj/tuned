@@ -26,7 +26,7 @@ async def generate_text_async(prompt, model):
     async with aiohttp.ClientSession() as session:
         try:
             #print(f"Sending request for prompt: {prompt[:30]}...")
-            async with session.post(url, json=data, timeout=10) as response:  # 10-second timeout
+            async with session.post(url, json=data, timeout=60) as response:  # 10-second timeout
                 response_json = await response.json()
                 return response_json
         except aiohttp.ClientError as e:
@@ -96,10 +96,10 @@ def get_preparation_prompt(para):
   prompt = f"You are a sci-fi author. Follow these instructions:\n{instructions}\n  ### Paragraph: \n\"{para}\"\n"
   return prompt
   
-async def generate_prompt_from_segments(segments, output_file, model, start_paragraph=20):
+async def generate_prompt_from_segments_async(segments, output_file, model, start_paragraph=20):
     df = pd.DataFrame(columns=['Original Paragraph', 'Prompt'])
     total_paragraphs = len(segments)
-    semaphore = asyncio.Semaphore(6)
+    semaphore = asyncio.Semaphore(1)
     print(f"Generating to {output_file}")
     async def process_paragraph(i):
         async with semaphore:
@@ -136,6 +136,37 @@ async def generate_prompt_from_segments(segments, output_file, model, start_para
 
     df.to_csv(output_file, index=False)
     return df
+
+def generate_prompt_from_segments(segments, output_file, model, start_paragraph=20):  
+
+  # Initialize DataFrame
+  df = pd.DataFrame(columns=['Original Paragraph', 'Prompt'])
+  process_cutoff = len(segments) #limit (e.g. 10 to process only 10)
+  total_paragraphs = len(segments)
+  for i in range(start_paragraph, min(total_paragraphs, start_paragraph + process_cutoff)):
+      print(f"Processing {i+1} of {min(start_paragraph + total_paragraphs, start_paragraph + process_cutoff)} paragraphs.")
+      
+      paragraph = segments[i]
+      prompt = get_preparation_prompt(paragraph)
+
+      response_json = generate_text(prompt, model)
+      response = response_json["response"]
+      
+      response = f"{response.strip().replace('\n', '')}"
+      
+      response = ftfy.fix_text(response)
+      
+      if not response:
+        continue
+      
+      # Append to DataFrame using pd.concat
+      new_row = pd.DataFrame({'Original Paragraph': [paragraph], 'Prompt': [response]})
+      df = pd.concat([df, new_row], ignore_index=True)
+      
+      df.to_csv(output_file, index=False)
+  
+  return df
+
 
 def split_training_set(df, file_base):
   
