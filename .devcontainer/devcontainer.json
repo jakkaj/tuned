@@ -33,6 +33,7 @@
 			"version": "latest",
 			"dockerDashComposeVersion": "v2"
 		},
+		"ghcr.io/devcontainers/features/nvidia-cuda:1": {"cudaVersion": "12.1", "installToolkit": true}
 		
 	},
 	"customizations": {
@@ -42,7 +43,7 @@
 			]
 		}
 	},
-	"postCreateCommand": "pip install -r requirements.txt",
+	"postCreateCommand": "pip install --no-build-isolation flash-attn && pip install -r requirements.txt",
 	"mounts": [
 		"source=${localEnv:HOME}/.gitconfig,target=/home/vscode/.gitconfig,type=bind",
 		"source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind"

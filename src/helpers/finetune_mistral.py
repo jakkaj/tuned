@@ -113,7 +113,7 @@ def run_finetune_mistral(base_path):
         args=transformers.TrainingArguments(
             output_dir=output_dir,
             warmup_steps=1,
-            per_device_train_batch_size=3,
+            per_device_train_batch_size=6,
             gradient_accumulation_steps=1,
             gradient_checkpointing=True,
             max_steps=500,
